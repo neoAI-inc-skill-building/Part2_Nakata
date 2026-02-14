@@ -1,0 +1,12 @@
+.env
+onb_data/*
+onb_ocr/*
+onb_eval/*
+!onb_eval/.gitkeep
+onb_extraction_results/*
+!onb_extraction_results/.gitkeep
+main_menter.py
+custom_prompt_dict_menter.py
+.python-version
+
+__pycache__/
