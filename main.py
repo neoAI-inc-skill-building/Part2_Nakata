@@ -6,7 +6,6 @@ from neollm.types import Messages, Response
 
 
 class ExtractorLLM(MyLLM):  # type: ignore[misc]
-    @abstractmethod
     def _preprocess(self, inputs: dict[str, str]) -> Messages:
         system_prompt = (
             "帳票の<OCR_TEXT>をもとに、<OUTPUT FORMAT>に従って情報を抽出してください。\n"
@@ -38,3 +37,4 @@ if __name__ == "__main__":
     )
 
     output = exllm(inputs={})
+    #aaaaj
