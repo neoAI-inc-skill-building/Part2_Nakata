@@ -8,5 +8,6 @@ onb_extraction_results/*
 main_menter.py
 custom_prompt_dict_menter.py
 .python-version
+.venv/*
 
 __pycache__/
