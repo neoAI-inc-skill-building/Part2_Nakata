@@ -19,8 +19,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-neollm = { git = "ssh://github.com/neoAI-inc/neo-llm-module.git", rev = "v1.3.42" }
-
+neollm = { git = "ssh://git@github.com/neoAI-inc/neo-llm-module.git", tag = "v1.3.42" }
 
 [tool.ruff]
 line-length = 119
