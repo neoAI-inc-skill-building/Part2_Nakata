@@ -3,6 +3,7 @@ from abc import abstractmethod
 from dotenv import load_dotenv
 from neollm import MyLLM
 from neollm.types import Messages, Response
+from custom_prompt_dict import EXTRACT_DEFINITION_DATA
 
 
 class ExtractorLLM(MyLLM):  # type: ignore[misc]
@@ -22,6 +23,32 @@ class ExtractorLLM(MyLLM):  # type: ignore[misc]
         return response.choices[0].message.content  # type: ignore[no-any-return]
 
 
+def make_output_format(definition_data: dict[str, Prompt]) -> dict[str, str]:
+    """
+    EXTRACT_DEFINITION_DATAを、key:japanese_name, value: promptとした辞書に変換する関数
+
+    Args:
+        dict[str, Prompt]: 
+            # keyが任意の文字列、valueがPromptクラスの辞書。以下例。
+            {
+                "recipient_company": Prompt(
+                    prompt="抽出結果を出力せよ",
+                    japanese_name="受領会社"
+                )
+            }
+
+    Returns:
+        dict[str, str]: 
+            # keyがjapanese_name、valueがpromptの辞書,以下例。
+            {
+                "受領会社": "抽出結果を出力せよ"
+            }
+    """
+    result = {}
+    for key, value in definition_data.items():
+        result[value.japanese_name] = value.prompt
+    return result
+
 if __name__ == "__main__":
     # .envの読み込み
     load_dotenv()
@@ -37,4 +64,4 @@ if __name__ == "__main__":
     )
 
     output = exllm(inputs={})
-    #aaaaj
+    print(output)
