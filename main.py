@@ -63,5 +63,5 @@ if __name__ == "__main__":
         },  # temperatureは、値が小さいほど一貫性のある出力で、大きいほど多様な出力となる。
     )
 
-    output = exllm(inputs={})
+    output = exllm(inputs={"output_format": make_output_format(EXTRACT_DEFINITION_DATA)})
     print(output)
