@@ -12,11 +12,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-    "ipykernel>=6.29.5",
-    "mypy>=1.16.0",
-    "ruff>=0.11.12",
-]
+dev = ["ipykernel>=6.29.5", "mypy>=1.16.0", "ruff>=0.11.12"]
 
 [tool.uv.sources]
 neollm = { git = "ssh://git@github.com/neoAI-inc/neo-llm-module.git", tag = "v1.3.42" }

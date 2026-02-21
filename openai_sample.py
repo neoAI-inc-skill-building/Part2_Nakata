@@ -1,22 +1,23 @@
-import os
-
+from neollm import MyLLM
 from dotenv import load_dotenv
-import openai
 
-# .envファイルから環境変数を読み込む
+from neollm.types import Messages, Response
+
 load_dotenv()
 
-# 環境変数からAPIキーを取得
-openai.api_key = os.getenv("OPENAI_API_KEY")
+class SampleMyLLM(MyLLM):
+    def _preprocess(self, inputs: str) -> Messages:
+        return [
+            {"role": "system", "content": "You are neoAI."},
+            {"role": "user", "content": inputs},
+        ]
 
-# APIリクエストの実行
-response = openai.chat.completions.create(
-    model="gpt-4o-mini",
-    messages=[
-        {"role": "system", "content": "あなたは親切なアシスタントです。"},
-        {"role": "user", "content": "こんにちは"},
-    ],
+    def _postprocess(self, response: Response) -> str:
+        return response.choices[0].message.content
+
+
+sample_myllm = SampleMyLLM(
+    platform="openai",
+    model="gpt-4o-2024-08-06", # デプロイしたmodel_nameから選ぶ
 )
-
-# 応答の取得
-print(response.choices[0].message.content)
+sample_myllm("あなたの名前は？")
