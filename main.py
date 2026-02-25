@@ -8,6 +8,8 @@ from custom_prompt_dict import Prompt
 import re
 import json
 import csv
+import pandas as pd
+import datetime
 
 class ExtractorLLM(MyLLM):  # type: ignore[misc]
     def _preprocess(self, inputs: dict[str, str]) -> Messages:
@@ -41,10 +43,18 @@ class ExtractorLLM(MyLLM):  # type: ignore[misc]
         except json.JSONDecodeError as e:
             print(f"JSONデコードエラーが発生しました：{e}")
             return json_string
+        
+    def _clean_field_value(self, value):  # ← selfを追加してクラス内に置く
+        if isinstance(value, str):
+            value = value.strip('"')
+            value = value.replace(',', '')
+        return value
 
-    def _postprocess(self, response: Response) -> str:
-        result = response.choices[0].message.content  # type: ignore[no-any-return]
-        return self.json2dict(result)
+    def _postprocess(self, response):
+        result = response.choices[0].message.content
+        result_dict = self.json2dict(result)
+        cleaned_result_dict = {k: self._clean_field_value(v) for k, v in result_dict.items()}
+        return cleaned_result_dict
 
 
 def make_output_format(definition_data: dict[str, Prompt]) -> dict[str, str]:
@@ -74,34 +84,54 @@ def make_output_format(definition_data: dict[str, Prompt]) -> dict[str, str]:
     return result
 
 if __name__ == "__main__":
-    # .envの読み込み
+    now = datetime.datetime.now()
+    strdt = now.strftime("%Y-%m-%d-%H-%M")
+
     load_dotenv()
+
+    # onb_filename.csvからファイル名一覧を読み込む
+    filenames_df = pd.read_csv("onb_filename.csv")
+
+    # 抽出モードの選択
+    mode = input("抽出モードを選択してください（1: 全帳票 / 2: 1帳票のみ）: ")
+    if mode == "2":
+        target_filename = input("抽出するファイル名を入力してください（例: receipt_727.png）: ")
+        filenames = [target_filename]
+    else:
+        filenames = list(filenames_df["ファイル名"])
+
+    output_format = make_output_format(EXTRACT_DEFINITION_DATA)
+
+    # ヘッダーの作成とCSVの初期化（ループ前に1回だけ）
+    headers = ["ファイル名"] + [value.japanese_name for value in EXTRACT_DEFINITION_DATA.values()]
+    with open(f"onb_extraction_results/{strdt}_extraction_result.csv", "w", newline="", encoding="utf-8") as out_csv:
+        writer = csv.DictWriter(out_csv, fieldnames=headers)
+        writer.writeheader()
     
-    # 抽出Classの初期化
-    exllm = ExtractorLLM(
+    # 全帳票をループで処理
+    for filename in filenames:
+
+        exllm = ExtractorLLM(
         platform="openai",
         model="gpt-4o-mini",
-        verbose=True,  # inputsやoutputsを出力するかどうか。Falseの場合、出力されない。
+        verbose=True,
         llm_settings={
             "temperature": 0,
             "max_tokens": 1024,
-        },  # temperatureは、値が小さいほど一貫性のある出力で、大きいほど多様な出力となる。
+        },
     )
 
-    with open("onb_ocr/av_receipt_727.png.txt", "r", encoding="utf-8") as f:
-        ocr_text = f.read()
+        ocr_path = f"onb_ocr/av_{filename}.txt"
 
-    output = exllm(inputs={"output_format": make_output_format(EXTRACT_DEFINITION_DATA), "ocr_text": ocr_text})
-    
+        # OCRテキストの読み込み
+        with open(ocr_path, "r", encoding="utf-8") as f:
+            ocr_text = f.read()
 
-    # headersの作成(EXTRACT_DEFINITION_DATAのjapanese_nameから作成しよう。）
-    headers = ["ファイル名"] + [value.japanese_name for value in EXTRACT_DEFINITION_DATA.values()]
+        # LLMで情報抽出
+        output = exllm(inputs={"output_format": output_format, "ocr_text": ocr_text})
 
-    with open("onb_extraction_results/extraction_result.csv", "w", newline="", encoding="utf-8") as out_csv:
-    # DictWriterの作成（fieldnamesをheadersに設定）
-        writer = csv.DictWriter(out_csv, fieldnames=headers)
-    # ヘッダー行の書き込み
-        writer.writeheader()
-    # データ行の書き込み
-        output["ファイル名"] = "av_receipt_727.png.txt"
-        writer.writerow(output)
+        # CSVに追記
+        with open(f"onb_extraction_results/{strdt}_extraction_result.csv", "a", newline="", encoding="utf-8") as out_csv:
+            writer = csv.DictWriter(out_csv, fieldnames=headers)
+            output["ファイル名"] = filename
+            writer.writerow(output)
