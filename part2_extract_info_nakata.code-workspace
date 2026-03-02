@@ -26,7 +26,10 @@
         "source.organizeImports": "explicit"
       }
     },
-    "mypy-type-checker.args": ["--config-file=pyproject.toml"]
+    "mypy-type-checker.args": [
+      "--config-file=pyproject.toml"
+    ],
+    "workbench.activityBar.orientation": "vertical"
   },
   "extensions": {
     "recommendations": [
