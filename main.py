@@ -1,24 +1,30 @@
 import os
 
 os.environ["NEOLLM_LOGGER_LEVEL"] = "DEBUG"
+import csv
+import datetime
+import json
+import logging
+import re
+from typing import Any, TypedDict, cast
+
+from dotenv import load_dotenv
 from neollm import MyLLM
 from neollm.types import Messages, Response
-from custom_prompt_dict import EXTRACT_DEFINITION_DATA
-from dotenv import load_dotenv
-from custom_prompt_dict import Prompt
-from typing import Any
-import re
-import json
-import csv
 import pandas as pd
-import datetime
-import logging
+
+from custom_prompt_dict import EXTRACT_DEFINITION_DATA, Prompt
 
 logger = logging.getLogger(__name__)
 
 
-class ExtractorLLM(MyLLM):
-    def _preprocess(self, inputs: dict[str, str]) -> Messages:
+class ExtractorInputs(TypedDict):
+    output_format: dict[str, str]
+    ocr_text: str
+
+
+class ExtractorLLM(MyLLM):  # type: ignore[misc]
+    def _preprocess(self, inputs: ExtractorInputs) -> Messages:
         system_prompt = (
             "帳票の<OCR_TEXT>をもとに、<OUTPUT FORMAT>に従って情報を抽出してください。\n"
             "抽出ができなかった場合は、'-'と出力してください。\n"
@@ -30,7 +36,7 @@ class ExtractorLLM(MyLLM):
         ]
         return messages
 
-    def json2dict(self, json_string: str) -> dict[str, Any] | str:
+    def json2dict(self, json_string: str) -> dict[str, Any]:
         """
         JSON文字列をPython dictに変換する
 
@@ -40,24 +46,39 @@ class ExtractorLLM(MyLLM):
         Returns:
             dict: 変換されたPython dict
         """
-        if match := re.search(r"\{.*\}", json_string, re.DOTALL):
-            json_string = match.group(0)
-            json_string = json_string.replace("'", '"')
-            try:
-                return json.loads(json_string)
-            except json.JSONDecodeError as e:
-                logger.error(f"JSONデコードエラーが発生しました：{e}")
-                raise
+        match = re.search(r"\{.*\}", json_string, re.DOTALL)
+        if match is None:
+            msg = "JSONオブジェクト（{...}）が見つかりませんでした"
+            raise ValueError(msg)
+
+        extracted = match.group(0).replace("'", '"')
+        try:
+            parsed = json.loads(extracted)
+        except json.JSONDecodeError:
+            logger.exception("JSONデコードエラーが発生しました")
+            raise
+
+        if not isinstance(parsed, dict):
+            msg = "JSONのトップレベルがオブジェクトではありませんでした"
+            raise TypeError(msg)
+
+        return cast("dict[str, Any]", parsed)
 
     def _clean_field_value(self, field_value: str) -> str:
-        return field_value.replace(',', '').strip('"')
+        return field_value.replace(",", "").strip('"')
 
-    def _postprocess(self, response: Response) -> dict[str, Any]:
-        result_dict = self.json2dict(response.choices[0].message.content)
-        cleaned_result_dict = {}
+    def _postprocess(self, response: Response) -> dict[str, str]:
+        content = response.choices[0].message.content
+        if not isinstance(content, str):
+            msg = "LLMの応答contentが文字列ではありませんでした"
+            raise TypeError(msg)
+
+        result_dict = self.json2dict(content)
+        cleaned_result_dict: dict[str, str] = {}
         for key, value in result_dict.items():
-            cleaned_result_dict[key] = self._clean_field_value(value)
+            cleaned_result_dict[str(key)] = self._clean_field_value(str(value))
         return cleaned_result_dict
+
 
 def make_output_format(definition_data: dict[str, Prompt]) -> dict[str, str]:
     """
@@ -81,13 +102,13 @@ def make_output_format(definition_data: dict[str, Prompt]) -> dict[str, str]:
             }
     """
     result = {}
-    for _, value in definition_data.items():
+    for value in definition_data.values():
         result[value.japanese_name] = value.prompt
     return result
 
 
 if __name__ == "__main__":
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(datetime.timezone.utc)
     strdt = now.strftime("%Y-%m-%d-%H-%M")
 
     load_dotenv()
@@ -99,7 +120,7 @@ if __name__ == "__main__":
         target_filename = input("抽出するファイル名を入力してください（例: receipt_727.png）: ")
         filenames = [target_filename]
     else:
-        filenames = list(filenames_df["ファイル名"])
+        filenames = list[Any](filenames_df["ファイル名"])
 
     output_format = make_output_format(EXTRACT_DEFINITION_DATA)
 
@@ -121,7 +142,7 @@ if __name__ == "__main__":
 
         ocr_path = f"onb_ocr/av_{filename}.txt"
 
-        with open(ocr_path, "r", encoding="utf-8") as f:
+        with open(ocr_path, encoding="utf-8") as f:
             ocr_text = f.read()
 
         output = exllm(inputs={"output_format": output_format, "ocr_text": ocr_text})

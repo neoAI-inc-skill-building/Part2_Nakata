@@ -25,11 +25,13 @@ exclude = ["__pycache__", ".git", ".mypy_cache", ".venv"]
 
 [tool.ruff.lint]
 select = ["ALL"]
+fixable = ["I"]
 ignore = [
     "PTH",
     "D",
     "T201",   # print書かない
     "ISC001",
+    "RUF001", # ambiguous-unicode-character-string (日本語文字列でノイズになりやすい)
     "RUF002", # ambiguous-unicode-character-docstring
     "RUF003", # ambiguous-unicode-character-comment
     "RET504", # unnecessary-assign

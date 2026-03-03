@@ -9,5 +9,8 @@ main_menter.py
 custom_prompt_dict_menter.py
 .python-version
 .venv/*
+.ruff_cache/*
+.mypy_cache/*
+.vscode/*
 
 __pycache__/

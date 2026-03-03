@@ -1,12 +1,11 @@
-from neollm import MyLLM
 from dotenv import load_dotenv
-
+from neollm import MyLLM
 from neollm.types import Messages, Response
 
 load_dotenv()
 
 
-class SampleMyLLM(MyLLM):
+class SampleMyLLM(MyLLM):  # type: ignore[misc]
     def _preprocess(self, inputs: str) -> Messages:
         return [
             {"role": "system", "content": "You are neoAI."},
@@ -14,7 +13,11 @@ class SampleMyLLM(MyLLM):
         ]
 
     def _postprocess(self, response: Response) -> str:
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        if not isinstance(content, str):
+            msg = "LLMの応答contentが文字列ではありませんでした"
+            raise TypeError(msg)
+        return content
 
 
 sample_myllm = SampleMyLLM(
