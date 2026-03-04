@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class ExtractorInputs(TypedDict):
-    output_format: dict[str, str]
+    extract_definition_data: dict[str, Prompt]
     ocr_text: str
 
 
@@ -29,7 +29,8 @@ class ExtractorLLM(MyLLM):  # type: ignore[misc]
             "帳票の<OCR_TEXT>をもとに、<OUTPUT FORMAT>に従って情報を抽出してください。\n"
             "抽出ができなかった場合は、'-'と出力してください。\n"
         )
-        user_prompt = f"<OUTPUT_FORMAT>\n {inputs['output_format']} \n\n<OCR_TEXT>\n```\n {inputs['ocr_text']} \n```"
+        output_format = self._make_output_format(inputs["extract_definition_data"])
+        user_prompt = f"<OUTPUT_FORMAT>\n {output_format} \n\n<OCR_TEXT>\n```\n {inputs['ocr_text']} \n```"
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -80,31 +81,31 @@ class ExtractorLLM(MyLLM):  # type: ignore[misc]
         return cleaned_result_dict
 
 
-def make_output_format(definition_data: dict[str, Prompt]) -> dict[str, str]:
-    """
-    EXTRACT_DEFINITION_DATAを、key:japanese_name, value: promptとした辞書に変換する関数
+    def _make_output_format(self, definition_data: dict[str, Prompt]) -> dict[str, str]:
+        """
+        EXTRACT_DEFINITION_DATAを、key:japanese_name, value: promptとした辞書に変換する関数
 
-    Args:
-        dict[str, Prompt]:
-            # keyが任意の文字列、valueがPromptクラスの辞書。以下例。
-            {
-                "recipient_company": Prompt(
-                    prompt="抽出結果を出力せよ",
-                    japanese_name="受領会社"
-                )
-            }
+        Args:
+            dict[str, Prompt]:
+                # keyが任意の文字列、valueがPromptクラスの辞書。以下例。
+                {
+                    "recipient_company": Prompt(
+                        prompt="抽出結果を出力せよ",
+                        japanese_name="受領会社"
+                    )
+                }
 
-    Returns:
-        dict[str, str]:
-            # keyがjapanese_name、valueがpromptの辞書,以下例。
-            {
-                "受領会社": "抽出結果を出力せよ"
-            }
-    """
-    result = {}
-    for value in definition_data.values():
-        result[value.japanese_name] = value.prompt
-    return result
+        Returns:
+            dict[str, str]:
+                # keyがjapanese_name、valueがpromptの辞書,以下例。
+                {
+                    "受領会社": "抽出結果を出力せよ"
+                }
+        """
+        result = {}
+        for value in definition_data.values():
+            result[value.japanese_name] = value.prompt
+        return result
 
 
 if __name__ == "__main__":
@@ -122,7 +123,6 @@ if __name__ == "__main__":
     else:
         filenames = list[Any](filenames_df["ファイル名"])
 
-    output_format = make_output_format(EXTRACT_DEFINITION_DATA)
 
     headers = ["ファイル名"] + [value.japanese_name for value in EXTRACT_DEFINITION_DATA.values()]
     with open(f"onb_extraction_results/{strdt}_extraction_result.csv", "w", newline="", encoding="utf-8") as out_csv:
@@ -145,7 +145,7 @@ if __name__ == "__main__":
         with open(ocr_path, encoding="utf-8") as f:
             ocr_text = f.read()
 
-        output = exllm(inputs={"output_format": output_format, "ocr_text": ocr_text})
+        output = exllm(inputs={"extract_definition_data": EXTRACT_DEFINITION_DATA, "ocr_text": ocr_text})
 
         with open(
             f"onb_extraction_results/{strdt}_extraction_result.csv", "a", newline="", encoding="utf-8"
