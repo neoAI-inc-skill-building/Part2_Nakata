@@ -12,5 +12,6 @@ custom_prompt_dict_menter.py
 .ruff_cache/*
 .mypy_cache/*
 .vscode/*
+docs/*
 
 __pycache__/
