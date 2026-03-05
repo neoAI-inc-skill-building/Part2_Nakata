@@ -21,12 +21,19 @@
       "**/node_modules": true,
       "static": true
     },
+    "ruff.enable": true,
+    "ruff.lint.enable": true,
+    "ruff.format.enable": true,
     "[python]": {
       "editor.codeActionsOnSave": {
-        "source.organizeImports": "explicit"
+        "source.fixAll.ruff": "explicit",
+        "source.organizeImports.ruff": "explicit"
       }
     },
-    "mypy-type-checker.args": ["--config-file=pyproject.toml"]
+    "mypy-type-checker.args": [
+      "--config-file=pyproject.toml"
+    ],
+    "workbench.activityBar.orientation": "vertical"
   },
   "extensions": {
     "recommendations": [
