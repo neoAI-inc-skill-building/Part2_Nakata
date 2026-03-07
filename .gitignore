@@ -2,6 +2,7 @@
 onb_data/*
 onb_ocr/*
 onb_eval/*
+onb_image_data/*
 !onb_eval/.gitkeep
 onb_extraction_results/*
 !onb_extraction_results/.gitkeep
@@ -13,5 +14,6 @@ custom_prompt_dict_menter.py
 .mypy_cache/*
 .vscode/*
 docs/*
+uv.lock
 
 __pycache__/
