@@ -223,7 +223,7 @@ def compare_and_export_excel(datetime: str) -> str:
 
 if __name__ == "__main__":
     # onb_extraction_resultsのdatetimeを設定!!
-    datetime = "2026-03-04-08-35"
+    datetime = "2026-03-05-02-34"
     compare_csv(datetime)
     calculate_accuracy_stats(datetime)
     compare_and_export_excel(datetime)

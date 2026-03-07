@@ -1,6 +1,7 @@
 import os
 
 os.environ["NEOLLM_LOGGER_LEVEL"] = "DEBUG"
+import base64
 import csv
 import datetime
 import json
@@ -9,6 +10,7 @@ import re
 from typing import Any
 
 from dotenv import load_dotenv
+import fitz
 from neollm import MyLLM
 from neollm.types import Messages, Response
 import pandas as pd
@@ -22,16 +24,19 @@ logger = logging.getLogger(__name__)
 class ExtractorInputs(BaseModel):
     extract_definition_data: dict[StrictStr, Prompt]
     ocr_text: StrictStr
+    file_path: StrictStr
 
 
 class ExtractorLLM(MyLLM):  # type: ignore[misc]
-    def _preprocess(self, inputs: ExtractorInputs) -> Messages:
+    def _preprocess(self, inputs: dict[str, Any]) -> Messages:
+        validated = ExtractorInputs(**inputs)
+
         system_prompt = (
             "帳票の<OCR_TEXT>をもとに、<OUTPUT_FORMAT>に従って情報を抽出してください。\n"
             "抽出ができなかった場合は、'-'と出力してください。\n"
         )
 
-        output_format = self._make_output_format(inputs.extract_definition_data)
+        output_format = self._make_output_format(validated.extract_definition_data)
 
         cot_items_list = [
             "受領会社",
@@ -59,11 +64,70 @@ class ExtractorLLM(MyLLM):  # type: ignore[misc]
             )
             system_prompt += cot_system_prompt
 
-        user_prompt = f"<OUTPUT_FORMAT>\n{output_format}\n\n<OCR_TEXT>\n```\n{inputs.ocr_text}\n```"
+        image_path = self._convert_pdf_to_image(validated.file_path)
+        base64_image = self._encode_image(image_path)
+
+        user_prompt = (
+            f"<OUTPUT_FORMAT>\n{output_format}\n\n"
+            f"<FILE_NAME>\n{os.path.basename(validated.file_path)}\n\n"
+            f"<OCR_TEXT>\n```\n{validated.ocr_text}\n```"
+        )
+
         return [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_prompt},
+                    {"type": "image_url", "image_url": {"url": base64_image}},
+                ],
+            },
         ]
+
+    def _encode_image(self, image_data: str | bytes) -> str:
+        """Messages用に画像をbase64エンコード
+
+        Args:
+            image_path (str | None, optional): 画像の
+            image_bytes (bytes | None, optional): 画像のバイナリデータ
+
+        Returns:
+            str: base64エンコードされた画像
+        """
+        if isinstance(image_data, str):
+            with open(image_data, "rb") as image_file:
+                image_bytes = image_file.read()
+        else:
+            image_bytes = image_data
+
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+        return f"data:image/jpeg;base64,{image_base64}"
+
+    def _convert_pdf_to_image(self, file_path: str) -> str:
+        """
+        PDFファイルを画像に変換する
+        Args:
+            file_path (str): PDFファイルのパス
+        Returns:
+            str: 画像ファイルのパス
+        """
+        file_extension = os.path.splitext(file_path)[1].lower()
+        if file_extension in [".png", ".jpg"]:
+            return file_path
+
+        image_base_name = os.path.splitext(os.path.basename(file_path))[0]
+        images_output_dir = "onb_image_data"
+
+        if not os.path.exists(images_output_dir):
+            os.makedirs(images_output_dir)
+
+        output_image_path = f"{images_output_dir}/{image_base_name}.jpg"
+        if not os.path.exists(output_image_path):
+            with fitz.open(file_path) as doc:
+                first_page = doc[0]
+                page_image = first_page.get_pixmap()
+                page_image.save(output_image_path)
+        return output_image_path
 
     def json2dict(self, json_string: str) -> dict[str, Any]:
         """
@@ -159,7 +223,13 @@ if __name__ == "__main__":
         with open(f"onb_ocr/av_{filename}.txt", encoding="utf-8") as f:
             ocr_text = f.read()
 
-        output = exllm(inputs={"extract_definition_data": EXTRACT_DEFINITION_DATA, "ocr_text": ocr_text})
+        output = exllm(
+            inputs={
+                "extract_definition_data": EXTRACT_DEFINITION_DATA,
+                "ocr_text": ocr_text,
+                "file_path": f"onb_data/{filename}",
+            },
+        )
 
         with open(
             f"onb_extraction_results/{strdt}_extraction_result.csv", "a", newline="", encoding="utf-8"
